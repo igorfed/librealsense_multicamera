@@ -35,11 +35,19 @@ class AllCamerasLoop:
                 name = d.get_info(rs.camera_info.name)
                 usb_type = d.get_info(rs.camera_info.usb_type_descriptor)
                 print(f'Found Device: {i}  {name} : {serial_number}: on USB {usb_type} ')
+                if serial_number == "039222250073":
+                    MASTER = 1
+                else:
+                    MASTER = 2
+                ctx.query_devices()[0].first_depth_sensor().set_option(rs.option.inter_cam_sync_mode, MASTER)
+                print(f'--CAM_SYNC {MASTER} {ctx.query_devices()[0].first_depth_sensor().get_option(rs.option.inter_cam_sync_mode)} ')                     
+                
                 if device_suffix and not d.get_info(rs.camera_info.name).endswith(device_suffix):
                     continue
                 ret_list.append([serial_number, name, rs.rs400_advanced_mode(d)])
                 print('-----------------', type(rs.rs400_advanced_mode(d)))
                 self.advnc_mode.append(rs.rs400_advanced_mode(d))
+
                 i = i +1
             return ret_list
 
@@ -115,7 +123,7 @@ class AllCamerasLoop:
                 window.show(ret_img)
                 stop = window.is_stopped()   
             self.f_close()
-        else:
+        elif camera_mode ==1:
             # here i save RGB and Depth frames in AVI
             colorwriter, depthwriter = self.set_videos()
             for i in range (N):
@@ -142,8 +150,24 @@ class AllCamerasLoop:
                 depthwriter[i].release()                                        
 
             self.f_close()
-            
             exit
+        else:
+            
+            for j in range (N):
+                # wait for pipeline
+                frames = self.get_frames()
+                img_frame_tuples = self.__frames_interpreter.save_image_from_frames(frames, self.save_serials)
+                m, n = 0,0
+                for i in range(len(img_frame_tuples)):
+                    if i%2:
+                        fname = f"frames/RGB_{self.save_serials[n]}_{j}.png"
+                        n = n+1
+                    else:
+                        fname = f"frames/D_{self.save_serials[m]}_{j}.png"
+                        
+                        m = m +1                                                
+                    cv2.imwrite(fname,img_frame_tuples[i][0])
+
             #frame_save = window.is_single_frame_save()
             
             #if save == True:

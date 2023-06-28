@@ -10,5 +10,5 @@ if __name__ == "__main__":
     
     __d455 = AllCamerasLoop()
     #__d455.run_loop(camera_mode=0, N = 10)
-    __d455.run_loop(camera_mode=2)
+    __d455.run_loop(camera_mode=2, N=100)
     print('done')
