@@ -170,6 +170,8 @@ class AllCamerasLoop:
             if j == N:
                 self.f_close()
                 self.stop = True
+    def frames2pointCloud():
+        pass
 
     def run_loop(self, camera_mode, N = 10):
         self.stop = False
@@ -186,8 +188,10 @@ class AllCamerasLoop:
             # here i save RGB and Depth frames in AVI
             
             self.frames2avi(N)
-        else:
+        elif camera_mode ==2:
             
             self.frames2png(N)
+        else:
 
+            self.frames2pointCloud()
            

@@ -42,7 +42,7 @@ class Camera(th.Thread):
         print("Advanced mode is", "enabled" if adv.is_enabled() else "disabled")
         self.__advanced_mode()
         self.__start_pipeline()
-        
+        self.__get_intrinsic()
 
     def __advanced_mode(self):
         # Get each control's current value
@@ -87,14 +87,14 @@ class Camera(th.Thread):
         else:
             MASTER = 2
 
-        prof = self.__pipeline.start(config)
+        self.prof = self.__pipeline.start(config)
         # Pipeline started
         self.__started = True
         print(f'{self.get_full_name()} camera is ready. Pipeline started') 
         
         
 
-        sensors = prof.get_device().query_sensors()
+        sensors = self.prof.get_device().query_sensors()
 
         
         for sensor in sensors:              
@@ -112,6 +112,13 @@ class Camera(th.Thread):
         #align_to = rs.stream.color
         #align = rs.align(align_to)
 
+
+    def __get_intrinsic(self):
+         
+          # get camera intrinsics
+        intr = self.prof.get_stream(rs.stream.color).as_video_stream_profile().get_intrinsics()
+        print('Camera Intrinsic')
+        print(intr.width, intr.height, intr.fx, intr.fy, intr.ppx, intr.ppy)
 
     def get_full_name(self):
         return f'{self.__name} ({self.__serial_number})'
