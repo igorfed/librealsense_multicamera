@@ -5,17 +5,15 @@ from image_ẁindow import ImgWindow
 from typing import List
 import time
 import cv2
-class AllCamerasLoop:
-    '''
-    Take info from all conected cameras in the loop.
-    '''
 
+
+class AllCamerasLoop:
+ 
     def __init__(self):
 
         self.__cameras = self.get_all_conected_cameras()
         self.__frames_interpreter = RealsenseFramesToImage()
-        #print(len(self.__cameras))
-
+ 
     def get_all_conected_cameras(self) -> List[Camera]:
         
         def get_conected_cameras_info(device_suffix: str) -> [[str, str, rs.rs400_advanced_mode]]:
@@ -34,18 +32,22 @@ class AllCamerasLoop:
                 serial_number = d.get_info(rs.camera_info.serial_number)
                 name = d.get_info(rs.camera_info.name)
                 usb_type = d.get_info(rs.camera_info.usb_type_descriptor)
-                print(f'Found Device: {i}  {name} : {serial_number}: on USB {usb_type} ')
+                
+                # setup Sync Mode
+                # Inter-camera synchronization mode: 0:Default, 1:Master, 2:Slave, 3:Full Salve, 4-258:Genlock with burst count of 1-255 frames for each trigger, 259 and 260 for two frames per trigger with laser ON-OFF and OFF-ON.
+
                 if serial_number == "039222250073":
                     MASTER = 1
                 else:
                     MASTER = 2
                 ctx.query_devices()[0].first_depth_sensor().set_option(rs.option.inter_cam_sync_mode, MASTER)
-                print(f'--CAM_SYNC {MASTER} {ctx.query_devices()[0].first_depth_sensor().get_option(rs.option.inter_cam_sync_mode)} ')                     
                 
+                print(f'Found Device: {i}  {name} : {serial_number}: on USB {usb_type} ')
+                print(f'\t Camera {serial_number} is : {ctx.query_devices()[0].first_depth_sensor().get_option(rs.option.inter_cam_sync_mode)} ')                     
+                #   
                 if device_suffix and not d.get_info(rs.camera_info.name).endswith(device_suffix):
                     continue
                 ret_list.append([serial_number, name, rs.rs400_advanced_mode(d)])
-                print('-----------------', type(rs.rs400_advanced_mode(d)))
                 self.advnc_mode.append(rs.rs400_advanced_mode(d))
 
                 i = i +1
@@ -109,78 +111,83 @@ class AllCamerasLoop:
     #    for camera in self.__cameras:
     #        camera.f.write(str(time.time()*1000)+'\n')
 
+    def frames2plot(self):
+        # Here I plot RGB and Depth frames
+        window = ImgWindow(name=self.__get_window_name())
+        while not self.stop:
+            frames = self.get_frames()
+            ret_img = self.__frames_interpreter.get_image_from_frames(frames=frames, add_tile=False)
+            window.show(ret_img)
+            self.stop = window.is_stopped()   
+        self.f_close()
 
 
-    def run_loop(self, camera_mode, N = 10):
-        stop = False
-        date_start = time.time()
-        if camera_mode == 0:
-            # Here I plot RGB and Depth frames
-            window = ImgWindow(name=self.__get_window_name())
-            while not stop:
-                frames = self.get_frames()
-                ret_img = self.__frames_interpreter.get_image_from_frames(frames=frames, add_tile=False)
-                window.show(ret_img)
-                stop = window.is_stopped()   
-            self.f_close()
-        elif camera_mode ==1:
-            # here i save RGB and Depth frames in AVI
-            colorwriter, depthwriter = self.set_videos()
-            for i in range (N):
-                # wait for pipeline
-                frames = self.get_frames()
-                img_frame_tuples = self.__frames_interpreter.save_image_from_frames(frames, self.save_serials)
-                total_elapsed = time.time()-date_start
-                
-                #self.f_time(self, i, date_start)
-                m, n = 0,0
 
-                for i in range(len(img_frame_tuples)):
-                    if i%2:
-                        colorwriter[n].write(img_frame_tuples[i][0])
-                        n = n+1
-                    else:
-                        depthwriter[m].write(img_frame_tuples[i][0])
-                        m = m +1                                                
+    def frames2avi(self, N):
+        colorwriter, depthwriter = self.set_videos()
+        j = 0 
+        while not self.stop:
+            # wait for pipeline
+            frames = self.get_frames()
+            img_frame_tuples = self.__frames_interpreter.save_image_from_frames(frames, self.save_serials)
+            #total_elapsed = time.time()-date_start
+            #self.f_time(self, i, date_start)
+            m, n = 0, 0
+            for i in range(len(img_frame_tuples)):
+                if i%2:
+                    colorwriter[n].write(img_frame_tuples[i][0])
+                    n = n+1
+                else:
+                    depthwriter[m].write(img_frame_tuples[i][0])
+                    m = m +1                                                
                 
                 #print('Frame num: %d, fps: %d' %(i, N/total_elapsed))
                 #cv2.imwrite('1.png',img_frame_tuples[0][0])
-            for i in range(4):
-                colorwriter[i].release()
-                depthwriter[i].release()                                        
+                                       
+            j = j +1
+            if j == N:
+                self.f_close()
+                for i in range(4):
+                    colorwriter[i].release()
+                    depthwriter[i].release() 
+                self.stop = True
+            
+    def frames2png(self, N):
+        j = 0
+        while not self.stop:
+            frames = self.get_frames()
+            img_frame_tuples = self.__frames_interpreter.save_image_from_frames(frames, self.save_serials)
+            m, n = 0,0
+            for i in range(len(img_frame_tuples)):
+                if i%2:
+                    fname = f"frames/RGB_{self.save_serials[n]}_{j}.png"
+                    n = n+1
+                else:
+                    fname = f"frames/D_{self.save_serials[m]}_{j}.png"                        
+                    m = m +1                                                
+                cv2.imwrite(fname,img_frame_tuples[i][0])
+            j = j + 1
+            if j == N:
+                self.f_close()
+                self.stop = True
 
-            self.f_close()
-            exit
+    def run_loop(self, camera_mode, N = 10):
+        self.stop = False
+        # Capture 10 frames to give autoexposure, etc. a chance to settle
+        for i in range(10):
+            _ = self.get_frames()
+        print('Camera running')
+        date_start = time.time()
+        
+        if camera_mode == 0:
+            self.frames2plot()
+
+        elif camera_mode ==1:
+            # here i save RGB and Depth frames in AVI
+            
+            self.frames2avi(N)
         else:
             
-            for j in range (N):
-                # wait for pipeline
-                frames = self.get_frames()
-                img_frame_tuples = self.__frames_interpreter.save_image_from_frames(frames, self.save_serials)
-                m, n = 0,0
-                for i in range(len(img_frame_tuples)):
-                    if i%2:
-                        fname = f"frames/RGB_{self.save_serials[n]}_{j}.png"
-                        n = n+1
-                    else:
-                        fname = f"frames/D_{self.save_serials[m]}_{j}.png"
-                        
-                        m = m +1                                                
-                    cv2.imwrite(fname,img_frame_tuples[i][0])
+            self.frames2png(N)
 
-            #frame_save = window.is_single_frame_save()
-            
-            #if save == True:
-            #    self.__frames_interpreter.save_image_from_frames(frames)
-            #else:                
-            #ret_img = self.__frames_interpreter.get_image_from_frames(frames=frames, add_tile=False)
-            
-            #if frame_save == False:
-            
-            #window.show(ret_img)
-            #stop = window.is_stopped()   
-                
-                
-        #    frames = self.get_frames()
-        #    window.swow(self.__frames_interpreter.get_image_from_frames(frames))
-        #    stop = window.is_stopped()
+           

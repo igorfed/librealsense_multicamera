@@ -29,6 +29,7 @@ class Camera(th.Thread):
         dir_name = 'save'
         
         check_if_dir_existed(dir_name, create=True)
+        check_if_dir_existed('frames', create=True)
         self.color_path = f'{dir_name}/{self.__serial_number}_rgb.avi'
         self.depth_path = f'{dir_name}/{self.__serial_number}_depth.avi'
         self.colorwriter = cv2.VideoWriter(self.color_path, cv2.VideoWriter_fourcc(*'XVID'), 30, (1280,720), 1)
@@ -47,18 +48,18 @@ class Camera(th.Thread):
         # Get each control's current value
         print(f'{self.__name} : {self.__serial_number}')
 
-        print("Depth Control: \n", self.advnc_mode.get_depth_control())
-        print("RSM: \n", self.advnc_mode.get_rsm())
-        print("RAU Support Vector Control: \n", self.advnc_mode.get_rau_support_vector_control())
-        print("Color Control: \n", self.advnc_mode.get_color_control())
-        print("RAU Thresholds Control: \n", self.advnc_mode.get_rau_thresholds_control())
-        print("SLO Color Thresholds Control: \n", self.advnc_mode.get_slo_color_thresholds_control())
-        print("SLO Penalty Control: \n", self.advnc_mode.get_slo_penalty_control())
-        print("HDAD: \n", self.advnc_mode.get_hdad())
-        print("Color Correction: \n", self.advnc_mode.get_color_correction())
-        print("Depth Table: \n", self.advnc_mode.get_depth_table())
-        print("Auto Exposure Control: \n", self.advnc_mode.get_ae_control())
-        print("Census: \n", self.advnc_mode.get_census())
+        #print("Depth Control: \n", self.advnc_mode.get_depth_control())
+        #print("RSM: \n", self.advnc_mode.get_rsm())
+        #print("RAU Support Vector Control: \n", self.advnc_mode.get_rau_support_vector_control())
+        #print("Color Control: \n", self.advnc_mode.get_color_control())
+        #print("RAU Thresholds Control: \n", self.advnc_mode.get_rau_thresholds_control())
+        #print("SLO Color Thresholds Control: \n", self.advnc_mode.get_slo_color_thresholds_control())
+        #print("SLO Penalty Control: \n", self.advnc_mode.get_slo_penalty_control())
+        #print("HDAD: \n", self.advnc_mode.get_hdad())
+        #print("Color Correction: \n", self.advnc_mode.get_color_correction())
+        #print("Depth Table: \n", self.advnc_mode.get_depth_table())
+        #print("Auto Exposure Control: \n", self.advnc_mode.get_ae_control())
+        #print("Census: \n", self.advnc_mode.get_census())
 
 
     def __start_pipeline(self):
@@ -81,29 +82,30 @@ class Camera(th.Thread):
         #Inter Cam Sync Mode
         #Description   : Inter-camera synchronization mode: 0:Default, 1:Master, 2:Slave, 3:Full Salve, 4-258:Genlock with burst count of 1-255 frames for each trigger, 259 and 260 for two frames per trigger with laser ON-OFF and OFF-ON.
         #Current Value : 1
-        #if (self.__serial_number == "039222250073"):
-        #    MASTER = 1
-        #else:
-        #    MASTER = 2            
+        if (self.__serial_number == "039222250073"):
+            MASTER = 1
+        else:
+            MASTER = 2
 
-        #print("MASTER", MASTER)
-        #config.enable_stream(rs.stream.infrared, 1, 640, 480, rs.format.y8, 30)
-        #for i in range(2):
-        #    config.enable_stream(rs.stream.infrared, i+1, 640, 480, rs.format.y8, 30)
-        
-
-        
         prof = self.__pipeline.start(config)
         # Pipeline started
         self.__started = True
-        print(f'{self.get_full_name()} camera is ready. Pipeline started')     
+        print(f'{self.get_full_name()} camera is ready. Pipeline started') 
+        
+        
+
         sensors = prof.get_device().query_sensors()
-        for sensor in sensors:
+
+        
+        for sensor in sensors:              
             if sensor.supports(rs.option.auto_exposure_priority):
                 aep = sensor.set_option(rs.option.auto_exposure_priority, 0)
                 aep = sensor.get_option(rs.option.auto_exposure_priority)
-                print(f'{sensor} Auto Exposure {aep}')
-        
+                #print(f'{sensor} Auto Exposure {aep}')
+            
+            
+        #exit            
+                 
         
         #depth_sensor = prof.get_device().first_depth_sensor()   
         ##depth_scale = depth_sensor.get_depth_scale()
@@ -146,25 +148,23 @@ class Camera(th.Thread):
         #depth_frame = frames.get_depth_frame()
 
         for frame in frames:
+            # We can only save video frames as pngs, so we skip the rest
             if frame.is_video_frame():
                 if frame.is_depth_frame():
                     # extract depth Image
                     # convert images to numpy arrays
+                    # To better visualize the depth data, we apply the colorizer on any incoming depth frames:
                     img = np.asanyarray(Camera.__colorizer.process(frame).get_data()).copy()
-                    #print(f"Color {i}", img.shape[0], img.shape[1])
                 else:
                     # extract color image
                     # convert images to numpy arrays
                     img = np.asanyarray(frame.get_data()).copy()
-
-                    #print(f"Depth {i}")
 
                 max_height = max(max_height, img.shape[0])
                 max_width  = max(max_width, img.shape[1])
                 # image chunk
                 img_frame_tuples.append((img,frame))
             
-            i = i + 1
         #img = np.asanyarray(frames.get_infrared_data(1))
         #img_frame_tuples.append((img,frame))
         #print(max_width, max_height)
