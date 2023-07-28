@@ -5,6 +5,7 @@ from image_ẁindow import ImgWindow
 from typing import List
 import time
 import cv2
+import time
 
 
 class AllCamerasLoop:
@@ -114,11 +115,30 @@ class AllCamerasLoop:
     def frames2plot(self):
         # Here I plot RGB and Depth frames
         window = ImgWindow(name=self.__get_window_name())
+        self.save = False
+        j = 0
+        timestr = time.strftime("%Y%m%d-%H%M%S")
         while not self.stop:
             frames = self.get_frames()
             ret_img = self.__frames_interpreter.get_image_from_frames(frames=frames, add_tile=False)
             window.show(ret_img)
-            self.stop = window.is_stopped()   
+            key = cv2.waitKey(1)
+            self.stop = window.is_stopped(key)   
+            self.save = window.is_save(key)
+
+            if (self.save==True):
+                m, n = 0, 0
+                for i in range(len(ret_img)):
+                    if i%2:
+                        fname = f"frames/RGB_{self.save_serials[n]}_{timestr}_{j}.png"
+                        n = n+1
+                    else:
+                        fname = f"frames/D_{self.save_serials[m]}_{timestr}_{j}.png"                        
+                        m = m +1                                                
+                    #cv2.imwrite(fname,ret_img[i][0])
+                j = j + 1
+
+            self.save = False
         self.f_close()
 
 
@@ -175,9 +195,12 @@ class AllCamerasLoop:
 
     def run_loop(self, camera_mode, N = 10):
         self.stop = False
+        
         # Capture 10 frames to give autoexposure, etc. a chance to settle
+        
         for i in range(10):
             _ = self.get_frames()
+        
         print('Camera running')
         date_start = time.time()
         

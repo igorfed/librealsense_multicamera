@@ -72,37 +72,30 @@ class Camera(th.Thread):
         #    dev.hardware_reset()
         #print("reset done")
 
-       
+        # Configure depth and color streams
+
         self.__pipeline = rs.pipeline()
         config = rs.config()
         config.enable_device(self.__serial_number)
         config.enable_stream(rs.stream.depth, 1280, 720, rs.format.z16, 30)
         config.enable_stream(rs.stream.color, 1280, 720, rs.format.bgr8, 30)
 
-        #Inter Cam Sync Mode
-        #Description   : Inter-camera synchronization mode: 0:Default, 1:Master, 2:Slave, 3:Full Salve, 4-258:Genlock with burst count of 1-255 frames for each trigger, 259 and 260 for two frames per trigger with laser ON-OFF and OFF-ON.
-        #Current Value : 1
-        if (self.__serial_number == "039222250073"):
-            MASTER = 1
-        else:
-            MASTER = 2
+        pipeline_wrapper = rs.pipeline_wrapper(self.__pipeline)
+        pipeline_profile = config.resolve(pipeline_wrapper)
+        device = pipeline_profile.get_device()
+        device_product_line = device.get_info(rs.camera_info.product_line)
 
         self.prof = self.__pipeline.start(config)
         # Pipeline started
-        self.__started = True
         print(f'{self.get_full_name()} camera is ready. Pipeline started') 
-        
-        
 
         sensors = self.prof.get_device().query_sensors()
-
-        
         for sensor in sensors:              
             if sensor.supports(rs.option.auto_exposure_priority):
                 aep = sensor.set_option(rs.option.auto_exposure_priority, 0)
                 aep = sensor.get_option(rs.option.auto_exposure_priority)
                 #print(f'{sensor} Auto Exposure {aep}')
-            
+        
             
         #exit            
                  
@@ -129,17 +122,11 @@ class Camera(th.Thread):
         Return a frame do not care about type
         '''
         frameset = self.__pipeline.wait_for_frames()
-        
-        
-        #print(f"frameset {frameset}")
-        #frameset <pyrealsense2.frameset Z16 RGB8 MOTION_XYZ32F MOTION_XYZ32F #42 @1686821341094.023926>
-        #frameset <pyrealsense2.frameset Z16 RGB8 MOTION_XYZ32F MOTION_XYZ32F #31 @1686821341101.560791>
-        #frameset <pyrealsense2.frameset Z16 RGB8 MOTION_XYZ32F MOTION_XYZ32F #9 @1686821341263.020508>
-        #frameset <pyrealsense2.frameset Z16 RGB8 MOTION_XYZ32F MOTION_XYZ32F #9 @1686821341788.717285>
-        if frameset:
-            return [f for f in frameset]
-        else:
+      
+        if not frameset.get_depth_frame() and not frameset.get_color_frame():
             return []
+        else:
+            return [f for f in frameset]
     
     @classmethod
     def get_images_from_video_frames(clc, frames):
@@ -156,6 +143,7 @@ class Camera(th.Thread):
 
         for frame in frames:
             # We can only save video frames as pngs, so we skip the rest
+            
             if frame.is_video_frame():
                 if frame.is_depth_frame():
                     # extract depth Image
